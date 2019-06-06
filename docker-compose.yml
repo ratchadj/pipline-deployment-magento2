@@ -1,0 +1,26 @@
+version: '2'
+services:
+  nginx:
+    build: ./nginx/
+    container_name: ais-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./source_code:/var/www/html
+      - ./nginx/ais.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - phpfpm
+    networks:
+      - website
+
+  phpfpm:
+    build: ./fpm/
+    container_name: ais-fpm
+    volumes:
+      - ./source_code:/var/www/html
+    networks:
+      - website
+
+networks:
+    website:
+      driver: bridge
