@@ -1,83 +1,27 @@
-def app
 pipeline {
-    agent any
+    agent { label 'docker' }
     environment {
-        version = "1.0.0"
+        // Specify your environment variables.
+        APP_VERSION = '1'
     }
-    stages{
-        stage('clean workspace') {
-            steps{
-                cleanWs()
-            }
-        }
-        stage('Initialize'){
-            steps{
-                script {
-                    def dockerHome = tool 'myDocker'
-                    def nodejsHome  = tool 'myNodejs'
-                    env.PATH = "${dockerHome}/bin:${nodejsHome}/bin:${env.PATH}"
-                }
-            }
-        }
-        stage('Checkout') {
+    stages {
+        stage('Build') {
             steps {
-                checkout scm
-            }
-        }
-        stage('Environment') {
-            steps{
-                script {
-                    sh 'git --version'
-                    echo "Branch: ${env.BRANCH_NAME}"
-                    echo "ChangeId: ${env.CHANGE_ID}"
-                    echo "ChangeTarget: ${env.CHANGE_TARGET}"
-                    sh 'docker -v'
-                    sh 'printenv'
-                    sh 'docker container ls'
-                }
-            }
-        }
-        stage('Build image') {
-            steps{
-                script {
-                    /* This builds the actual image; synonymous to
-                    * docker build on the command line */
-                    app = docker.build("ratchadj2016/oms")
-                }
-            }
-        }
-        stage('Push image') {
-            steps{
-                script {
-                    /* Finally, we'll push the image with two tags:
-                    * First, the incremental build number from Jenkins
-                    * Second, the 'latest' tag.
-                    * Pushing multiple tags is cheap, as all the layers are reused. */
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
-                        app.push(version)
-                        app.push("latest")
-                    }
-                }
-            }
-        }
-        stage('Clean docker test'){
-            steps{
-                script {
-                    sh 'docker rmi registry.hub.docker.com/ratchadj2016/oms:${version}'
-                    sh 'docker rmi ratchadj2016/oms:latest'
-                }
+                // Print all the environment variables.
+                sh 'printenv'
+                sh 'echo $GIT_BRANCH'
+                sh 'echo $GIT_COMMIT'
+                echo 'Install non-dev composer packages and test a symfony cache clear'
+                sh 'docker-compose docker-compose.yml up'
+                sh 'docker container ls'
             }
         }
     }
     post {
-        success {
-            echo 'The Pipeline success :)'
-        }
-        failure { 
-            script {
-                echo 'The Pipeline failed :('
-                // slackSend color: 'danger', message: "$JOB_NAME - Failed #$BUILD_NUMBER (<$BUILD_URL|Open>)"
-            }
+        always {
+            // Always cleanup after the build.
+            sh 'docker-compose -f docker-compose.yml down'
+            sh 'rm .env'
         }
     }
 }
